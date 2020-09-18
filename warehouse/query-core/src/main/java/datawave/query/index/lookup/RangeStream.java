@@ -646,11 +646,7 @@ public class RangeStream extends BaseVisitor implements CloseableIterable<QueryP
     
     private boolean isWithinBoundedRange(JexlNode node) {
         if (node.jjtGetParent() instanceof ASTAndNode) {
-            List<JexlNode> otherNodes = new ArrayList<>();
-            Map<LiteralRange<?>,List<JexlNode>> ranges = JexlASTHelper.getBoundedRangesIndexAgnostic((ASTAndNode) (node.jjtGetParent()), otherNodes, false);
-            if (ranges.size() == 1 && otherNodes.isEmpty()) {
-                return true;
-            }
+            return JexlASTHelper.findRange().isRange(node.jjtGetParent());
         }
         return false;
     }
@@ -762,12 +758,9 @@ public class RangeStream extends BaseVisitor implements CloseableIterable<QueryP
             
             // create a list of tuples for each shard
             if (log.isDebugEnabled()) {
-                Map<LiteralRange<?>,List<JexlNode>> ranges = JexlASTHelper.getBoundedRanges(node, config.getDatatypeFilter(), metadataHelper, null, true);
-                if (!ranges.isEmpty()) {
-                    for (LiteralRange<?> range : ranges.keySet()) {
-                        log.debug("{\"" + range.getFieldName() + "\": \"" + range.getLower() + " - " + range.getUpper()
-                                        + "\"} requires a full field index scan.");
-                    }
+                LiteralRange range = JexlASTHelper.findRange().indexedOnly(config.getDatatypeFilter(), metadataHelper).getRange(node);
+                if (range != null) {
+                    log.debug("{\"" + range.getFieldName() + "\": \"" + range.getLower() + " - " + range.getUpper() + "\"} requires a full field index scan.");
                 } else {
                     log.debug("{\"" + JexlASTHelper.getLiterals(node) + "\"} requires a full field index scan.");
                 }

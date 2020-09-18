@@ -1,6 +1,7 @@
 package datawave.query.jexl;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -10,6 +11,7 @@ import datawave.query.jexl.visitors.JexlStringBuildingVisitor;
 import datawave.query.jexl.visitors.PrintingVisitor;
 import datawave.query.jexl.JexlNodeFactory.ContainerType;
 
+import datawave.query.util.MockMetadataHelper;
 import org.apache.commons.jexl2.parser.ASTAndNode;
 import org.apache.commons.jexl2.parser.ASTEQNode;
 import org.apache.commons.jexl2.parser.ASTERNode;
@@ -247,38 +249,74 @@ public class JexlASTHelperTest {
     }
     
     @Test
-    public void testNonRangeNodeNegation() throws Exception {
+    public void testFindRange() throws Exception {
         ASTJexlScript script = JexlASTHelper.parseJexlQuery("A < 'b' && A > 'a' && !(FOO == 'bar')");
         
-        List<JexlNode> nonRangeChildNodes = new ArrayList<>();
-        Map<LiteralRange<?>,List<JexlNode>> ranges = JexlASTHelper
-                        .getBoundedRangesIndexAgnostic((ASTAndNode) (script.jjtGetChild(0)), nonRangeChildNodes, true);
+        LiteralRange range = JexlASTHelper.findRange().getRange(script.jjtGetChild(0));
         
-        Assert.assertEquals(1, ranges.size());
-        Assert.assertEquals(2, ranges.values().iterator().next().size());
-        Assert.assertEquals(1, nonRangeChildNodes.size());
-        Assert.assertEquals(ASTNotNode.class, nonRangeChildNodes.get(0).getClass());
+        Assert.assertNull(range);
         
-        script = JexlASTHelper.parseJexlQuery("A < 5 && A > 1 && !(FOO == 'bar' && !(BAR == 'foo') && BAR != 'foo')");
+        script = JexlASTHelper.parseJexlQuery("A < 5 && A > 1");
         
-        nonRangeChildNodes.clear();
-        ranges = JexlASTHelper.getBoundedRangesIndexAgnostic((ASTAndNode) (script.jjtGetChild(0)), nonRangeChildNodes, true);
+        range = JexlASTHelper.findRange().getRange(script.jjtGetChild(0));
         
-        Assert.assertEquals(1, ranges.size());
-        Assert.assertEquals(2, ranges.values().iterator().next().size());
-        Assert.assertEquals(1, nonRangeChildNodes.size());
-        Assert.assertEquals(ASTNotNode.class, nonRangeChildNodes.get(0).getClass());
+        Assert.assertNotNull(range);
+        Assert.assertNotNull(range.getLowerNode());
+        Assert.assertNotNull(range.getUpperNode());
+    }
+    
+    @Test
+    public void testFindDelayedRange() throws Exception {
+        ASTJexlScript script = JexlASTHelper.parseJexlQuery("((ASTDelayedPredicate = true) && (A < 'b' && A > 'a')) && !(FOO == 'bar')");
         
-        script = JexlASTHelper
-                        .parseJexlQuery("A < 5 && A > 1 && !(FOO == 'term' && !(BAR =~ 'regex') && BAR !~ 'regex' && (BAR != 'term') && ! (BAR == 'term') && FOO =~ 'regex')");
+        LiteralRange range = JexlASTHelper.findRange().getRange(script.jjtGetChild(0));
         
-        nonRangeChildNodes.clear();
-        ranges = JexlASTHelper.getBoundedRangesIndexAgnostic((ASTAndNode) (script.jjtGetChild(0)), nonRangeChildNodes, true);
+        Assert.assertNull(range);
         
-        Assert.assertEquals(1, ranges.size());
-        Assert.assertEquals(2, ranges.values().iterator().next().size());
-        Assert.assertEquals(1, nonRangeChildNodes.size());
-        Assert.assertEquals(ASTNotNode.class, nonRangeChildNodes.get(0).getClass());
+        script = JexlASTHelper.parseJexlQuery("((ASTDelayedPredicate = true) && (A < 'b' && A > 'a'))");
+        
+        range = JexlASTHelper.findRange().getRange(script.jjtGetChild(0));
+        
+        Assert.assertNotNull(range);
+        Assert.assertNotNull(range.getLowerNode());
+        Assert.assertNotNull(range.getUpperNode());
+    }
+    
+    @Test
+    public void testFindNotDelayedRange() throws Exception {
+        ASTJexlScript script = JexlASTHelper.parseJexlQuery("((ASTDelayedPredicate = true) && (A < 'b' && A > 'a'))");
+        
+        LiteralRange range = JexlASTHelper.findRange().notDelayed().getRange(script.jjtGetChild(0));
+        
+        Assert.assertNull(range);
+        
+        script = JexlASTHelper.parseJexlQuery("A < 5 && A > 1");
+        
+        range = JexlASTHelper.findRange().notDelayed().getRange(script.jjtGetChild(0));
+        
+        Assert.assertNotNull(range);
+        Assert.assertNotNull(range.getLowerNode());
+        Assert.assertNotNull(range.getUpperNode());
+    }
+    
+    @Test
+    public void testFindIndexedRange() throws Exception {
+        MockMetadataHelper helper = new MockMetadataHelper();
+        helper.setIndexedFields(Collections.singleton("A"));
+        
+        ASTJexlScript script = JexlASTHelper.parseJexlQuery("A < 'b' && A > 'a'");
+        
+        LiteralRange range = JexlASTHelper.findRange().indexedOnly(null, helper).getRange(script.jjtGetChild(0));
+        
+        Assert.assertNotNull(range);
+        Assert.assertNotNull(range.getLowerNode());
+        Assert.assertNotNull(range.getUpperNode());
+        
+        script = JexlASTHelper.parseJexlQuery("B < 5 && B > 1");
+        
+        range = JexlASTHelper.findRange().indexedOnly(null, helper).getRange(script.jjtGetChild(0));
+        
+        Assert.assertNull(range);
     }
     
     @Test

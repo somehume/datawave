@@ -144,15 +144,15 @@ public class RangeConjunctionRebuildingVisitor extends RebuildingVisitor {
     @Override
     public Object visit(ASTAndNode node, Object data) {
         List<JexlNode> leaves = new ArrayList<>();
-        Map<LiteralRange<?>,List<JexlNode>> ranges = JexlASTHelper.getBoundedRanges(node, this.config.getDatatypeFilter(), this.helper, leaves, false);
+        LiteralRange range = JexlASTHelper.findRange().indexedOnly(this.config.getDatatypeFilter(), this.helper).notDelayed().getRange(node);
         
         JexlNode andNode = JexlNodes.newInstanceOfType(node);
         andNode.image = node.image;
         andNode.jjtSetParent(node.jjtGetParent());
         
         // We have a bounded range completely inside of an AND/OR
-        if (!ranges.isEmpty()) {
-            andNode = expandIndexBoundedRange(ranges, leaves, node, andNode, data);
+        if (range != null) {
+            andNode = expandIndexBoundedRange(range, node, andNode, data);
         } else {
             // We have no bounded range to replace, just proceed as normal
             JexlNodes.ensureCapacity(andNode, node.jjtGetNumChildren());
@@ -167,56 +167,44 @@ public class RangeConjunctionRebuildingVisitor extends RebuildingVisitor {
         return andNode;
     }
     
-    protected JexlNode expandIndexBoundedRange(Map<LiteralRange<?>,List<JexlNode>> ranges, List<JexlNode> leaves, ASTAndNode currentNode, JexlNode newNode,
-                    Object data) {
+    protected JexlNode expandIndexBoundedRange(LiteralRange range, ASTAndNode currentNode, JexlNode newNode, Object data) {
         // Add all children in this AND/OR which are not a part of the range
-        JexlNodes.ensureCapacity(newNode, leaves.size() + ranges.size());
+        JexlNodes.ensureCapacity(newNode, 1);
         int index = 0;
-        for (; index < leaves.size(); index++) {
-            log.debug(leaves.get(index).image);
-            // Add each child which is not a part of the bounded range, visiting them first
-            JexlNode visitedChild = (JexlNode) leaves.get(index).jjtAccept(this, null);
-            newNode.jjtAddChild(visitedChild, index);
-            visitedChild.jjtSetParent(newNode);
-        }
         
-        // Sanity check to ensure that we found some nodes (redundant since we couldn't have made a bounded LiteralRange in the first
-        // place if we had found not range nodes)
-        if (ranges.isEmpty()) {
+        // Sanity check to ensure that we found a range (redundant since we couldn't have made a bounded LiteralRange in the first
+        // place if we had found no range nodes)
+        if (range == null) {
             log.debug("Cannot find range operator nodes that encompass this query. Not proceeding with range expansion for this node.");
             return currentNode;
         }
         
-        for (Map.Entry<LiteralRange<?>,List<JexlNode>> range : ranges.entrySet()) {
-            IndexLookup lookup = ShardIndexQueryTableStaticMethods.expandRange(range.getKey());
-            
-            IndexLookupMap fieldsToTerms = null;
-            
-            try {
-                fieldsToTerms = lookup.lookup(config, scannerFactory, config.getMaxIndexScanTimeMillis());
-            } catch (IllegalRangeArgumentException e) {
-                log.info("Cannot expand "
-                                + range
-                                + " because it creates an invalid Accumulo Range. This is likely due to bad user input or failed normalization. This range will be ignored.");
-                return RebuildingVisitor.copy(currentNode);
-            }
-            
-            // If we have any terms that we expanded, wrap them in parens and add them to the parent
-            ASTAndNode onlyRangeNodes = new ASTAndNode(ParserTreeConstants.JJTANDNODE);
-            
-            JexlNodes.ensureCapacity(onlyRangeNodes, range.getValue().size());
-            for (int i = 0; i < range.getValue().size(); i++) {
-                onlyRangeNodes.jjtAddChild(range.getValue().get(i), i);
-            }
-            
-            JexlNode orNode = JexlNodeFactory.createNodeTreeFromFieldsToValues(JexlNodeFactory.ContainerType.OR_NODE, new ASTEQNode(
-                            ParserTreeConstants.JJTEQNODE), onlyRangeNodes, fieldsToTerms, expandFields, expandValues);
-            
-            // Set the parent and child pointers accordingly
-            orNode.jjtSetParent(newNode);
-            newNode.jjtAddChild(orNode, index++);
-            
+        IndexLookup lookup = ShardIndexQueryTableStaticMethods.expandRange(range);
+        
+        IndexLookupMap fieldsToTerms = null;
+        
+        try {
+            fieldsToTerms = lookup.lookup(config, scannerFactory, config.getMaxIndexScanTimeMillis());
+        } catch (IllegalRangeArgumentException e) {
+            log.info("Cannot expand "
+                            + range
+                            + " because it creates an invalid Accumulo Range. This is likely due to bad user input or failed normalization. This range will be ignored.");
+            return RebuildingVisitor.copy(currentNode);
         }
+        
+        // for the terms that we expanded, wrap them in parens and add them to the parent
+        ASTAndNode onlyRangeNodes = new ASTAndNode(ParserTreeConstants.JJTANDNODE);
+        
+        JexlNodes.ensureCapacity(onlyRangeNodes, 2);
+        onlyRangeNodes.jjtAddChild(range.getLowerNode(), 0);
+        onlyRangeNodes.jjtAddChild(range.getUpperNode(), 1);
+        
+        JexlNode orNode = JexlNodeFactory.createNodeTreeFromFieldsToValues(JexlNodeFactory.ContainerType.OR_NODE, new ASTEQNode(ParserTreeConstants.JJTEQNODE),
+                        onlyRangeNodes, fieldsToTerms, expandFields, expandValues);
+        
+        // Set the parent and child pointers accordingly
+        orNode.jjtSetParent(newNode);
+        newNode.jjtAddChild(orNode, index++);
         
         // If we had no other nodes than this bounded range, we can strip out the original parent
         if (newNode.jjtGetNumChildren() == 1) {

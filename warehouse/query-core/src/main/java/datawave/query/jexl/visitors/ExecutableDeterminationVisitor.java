@@ -618,11 +618,7 @@ public class ExecutableDeterminationVisitor extends BaseVisitor {
     
     private boolean isWithinBoundedRange(JexlNode node) {
         if (node.jjtGetParent() instanceof ASTAndNode) {
-            List<JexlNode> otherNodes = new ArrayList<>();
-            Map<LiteralRange<?>,List<JexlNode>> ranges = JexlASTHelper.getBoundedRangesIndexAgnostic((ASTAndNode) (node.jjtGetParent()), otherNodes, false);
-            if (ranges.size() == 1 && otherNodes.isEmpty()) {
-                return true;
-            }
+            return JexlASTHelper.findRange().isRange(node.jjtGetParent());
         }
         return false;
     }

@@ -19,7 +19,7 @@ public class RangeCoalescingVisitorTest {
         String expectedQuery = "(NUM >= '+aE2' && NUM <= '+aE5')";
         
         ASTJexlScript script = JexlASTHelper.parseJexlQuery(originalQuery);
-        ASTJexlScript newScript = RangeCoalescingVisitor.coalesceRanges(script);
+        ASTJexlScript newScript = RangeTaggingVisitor.tagRanges(script);
         
         String newQuery = JexlStringBuildingVisitor.buildQuery(newScript);
         assertEquals("Expected " + expectedQuery + " but was " + newQuery, expectedQuery, newQuery);
@@ -31,7 +31,7 @@ public class RangeCoalescingVisitorTest {
         String expectedQuery = "FOO == 'ba' && (NUM >= '+aE2' && NUM <= '+aE5')";
         
         ASTJexlScript script = JexlASTHelper.parseJexlQuery(originalQuery);
-        ASTJexlScript newScript = RangeCoalescingVisitor.coalesceRanges(script);
+        ASTJexlScript newScript = RangeTaggingVisitor.tagRanges(script);
         
         String newQuery = JexlStringBuildingVisitor.buildQuery(newScript);
         assertEquals("Expected " + expectedQuery + " but was " + newQuery, expectedQuery, newQuery);
@@ -43,7 +43,7 @@ public class RangeCoalescingVisitorTest {
         String expectedQuery = "FOO == 'ba' && (NUM > '+aE1' && NUM < '+aE5')";
         
         ASTJexlScript script = JexlASTHelper.parseJexlQuery(originalQuery);
-        ASTJexlScript newScript = RangeCoalescingVisitor.coalesceRanges(script);
+        ASTJexlScript newScript = RangeTaggingVisitor.tagRanges(script);
         
         String newQuery = JexlStringBuildingVisitor.buildQuery(newScript);
         assertEquals("Expected " + expectedQuery + " but was " + newQuery, expectedQuery, newQuery);
@@ -56,7 +56,7 @@ public class RangeCoalescingVisitorTest {
         String expectedQuery = "TACO == 'tacocat' && (NUM >= '+aE1' && NUM <= '+aE4')";
         
         ASTJexlScript script = JexlASTHelper.parseJexlQuery(originalQuery);
-        ASTJexlScript newScript = RangeCoalescingVisitor.coalesceRanges(script);
+        ASTJexlScript newScript = RangeTaggingVisitor.tagRanges(script);
         
         String newQuery = JexlStringBuildingVisitor.buildQuery(newScript);
         assertEquals("Expected " + expectedQuery + " but was " + newQuery, expectedQuery, newQuery);
@@ -69,7 +69,7 @@ public class RangeCoalescingVisitorTest {
         String expectedQuery = "TACO == 'tacocat' && (FOO >= 'bar' && FOO <= 'bas')";
         
         ASTJexlScript script = JexlASTHelper.parseJexlQuery(originalQuery);
-        ASTJexlScript newScript = RangeCoalescingVisitor.coalesceRanges(script);
+        ASTJexlScript newScript = RangeTaggingVisitor.tagRanges(script);
         
         String newQuery = JexlStringBuildingVisitor.buildQuery(newScript);
         assertEquals("Expected " + expectedQuery + " but was " + newQuery, expectedQuery, newQuery);
@@ -83,7 +83,7 @@ public class RangeCoalescingVisitorTest {
         String expectedQuery2 = "TACO == 'tacocat' && (NUM >= '+aE1' && NUM <= '+aE4') && (FOO >= 'bar' && FOO <= 'bas')";
         
         ASTJexlScript script = JexlASTHelper.parseJexlQuery(originalQuery);
-        ASTJexlScript newScript = RangeCoalescingVisitor.coalesceRanges(script);
+        ASTJexlScript newScript = RangeTaggingVisitor.tagRanges(script);
         
         String newQuery = JexlStringBuildingVisitor.buildQuery(newScript);
         assertTrue("Expected " + expectedQuery1 + " or " + expectedQuery2 + " but was " + newQuery,
@@ -98,7 +98,7 @@ public class RangeCoalescingVisitorTest {
         String expectedQuery2 = "TACO == 'tacocat' && (NUM >= '+aE1' && NUM <= '+aE4') && (FOO >= 'bar' && FOO <= 'bas')";
         
         ASTJexlScript script = JexlASTHelper.parseJexlQuery(originalQuery);
-        ASTJexlScript newScript = RangeCoalescingVisitor.coalesceRanges(script);
+        ASTJexlScript newScript = RangeTaggingVisitor.tagRanges(script);
         
         String newQuery = JexlStringBuildingVisitor.buildQuery(newScript);
         assertTrue("Expected " + expectedQuery1 + " or " + expectedQuery2 + " but was " + newQuery,
@@ -114,7 +114,7 @@ public class RangeCoalescingVisitorTest {
         String expectedQuery2 = "TACO == 'tacocat' && NUM3 == '+aE3' && (NUM >= '+aE1' && NUM <= '+aE5') && (NUM2 >= '+aE2' && NUM2 <= '+aE4')";
         
         ASTJexlScript script = JexlASTHelper.parseJexlQuery(originalQuery);
-        ASTJexlScript newScript = RangeCoalescingVisitor.coalesceRanges(script);
+        ASTJexlScript newScript = RangeTaggingVisitor.tagRanges(script);
         
         String newQuery = JexlStringBuildingVisitor.buildQuery(newScript);
         assertTrue("Expected [" + expectedQuery1 + "] or [" + expectedQuery2 + "] but was " + newQuery,

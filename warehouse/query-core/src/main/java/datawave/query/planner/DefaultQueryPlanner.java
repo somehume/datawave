@@ -67,7 +67,7 @@ import datawave.query.jexl.visitors.PushdownMissingIndexRangeNodesVisitor;
 import datawave.query.jexl.visitors.PushdownUnexecutableNodesVisitor;
 import datawave.query.jexl.visitors.QueryModelVisitor;
 import datawave.query.jexl.visitors.QueryOptionsFromQueryVisitor;
-import datawave.query.jexl.visitors.RangeCoalescingVisitor;
+import datawave.query.jexl.visitors.RangeTaggingVisitor;
 import datawave.query.jexl.visitors.RangeConjunctionRebuildingVisitor;
 import datawave.query.jexl.visitors.RegexFunctionVisitor;
 import datawave.query.jexl.visitors.SetMembershipVisitor;
@@ -1006,7 +1006,7 @@ public class DefaultQueryPlanner extends QueryPlanner {
             stopwatch = timers.newStartedStopwatch("DefaultQueryPlanner - Coalesce ranges");
             
             // Coalesce any bounded ranges into separate AND subtrees
-            queryTree = RangeCoalescingVisitor.coalesceRanges(queryTree);
+            queryTree = RangeTaggingVisitor.tagRanges(queryTree);
             
             if (log.isDebugEnabled()) {
                 logQuery(queryTree, "Query after ranges were coalesced:");
