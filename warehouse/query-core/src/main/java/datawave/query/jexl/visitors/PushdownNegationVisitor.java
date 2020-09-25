@@ -3,6 +3,7 @@ package datawave.query.jexl.visitors;
 import datawave.query.jexl.JexlASTHelper;
 import datawave.query.jexl.JexlNodeFactory;
 import datawave.query.jexl.LiteralRange;
+import datawave.query.jexl.nodes.BoundedRange;
 import datawave.query.jexl.nodes.QueryPropertyMarker;
 import org.apache.commons.jexl2.parser.ASTAndNode;
 import org.apache.commons.jexl2.parser.ASTNENode;
@@ -107,6 +108,9 @@ public class PushdownNegationVisitor extends BaseVisitor {
                 if (QueryPropertyMarker.instanceOf(node, null)) {
                     // do not propagate inside an ivarator marker
                     if (JexlASTHelper.isIvaratorMarker(node)) {
+                        // don't propagate inside
+                        return data;
+                    } else if (BoundedRange.instanceOf(node)) {
                         // don't propagate inside
                         return data;
                     }

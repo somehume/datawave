@@ -248,7 +248,7 @@ public class IteratorBuildingVisitor extends BaseVisitor {
             // index checking has already been done, otherwise we would not have
             // an "ExceededValueThresholdMarker"
             // hence the "IndexAgnostic" method can be used here
-            LiteralRange range = JexlASTHelper.findRange().getRange(and);
+            LiteralRange range = JexlASTHelper.findRange().recursively().getRange(and);
             if (range == null) {
                 QueryException qe = new QueryException(DatawaveErrorCode.MULTIPLE_RANGES_IN_EXPRESSION);
                 throw new DatawaveFatalQueryException(qe);
@@ -1184,7 +1184,7 @@ public class IteratorBuildingVisitor extends BaseVisitor {
         // "ExceededValueThresholdMarker"
         // hence the "IndexAgnostic" method can be used here
         if (source instanceof ASTAndNode) {
-            LiteralRange range = JexlASTHelper.findRange().getRange(source);
+            LiteralRange range = JexlASTHelper.findRange().recursively().getRange(source);
             if (range == null) {
                 QueryException qe = new QueryException(DatawaveErrorCode.MULTIPLE_RANGES_IN_EXPRESSION);
                 throw new DatawaveFatalQueryException(qe);
@@ -1213,7 +1213,7 @@ public class IteratorBuildingVisitor extends BaseVisitor {
         // "ExceededValueThresholdMarker"
         // hence the "IndexAgnostic" method can be used here
         if (sourceNode instanceof ASTAndNode) {
-            LiteralRange range = JexlASTHelper.findRange().getRange(sourceNode);
+            LiteralRange range = JexlASTHelper.findRange().recursively().getRange(sourceNode);
             if (range == null) {
                 QueryException qe = new QueryException(DatawaveErrorCode.MULTIPLE_RANGES_IN_EXPRESSION);
                 throw new DatawaveFatalQueryException(qe);
@@ -1244,7 +1244,7 @@ public class IteratorBuildingVisitor extends BaseVisitor {
         // "ExceededValueThresholdMarker"
         // hence the "IndexAgnostic" method can be used here
         if (sourceNode instanceof ASTAndNode) {
-            LiteralRange range = JexlASTHelper.findRange().getRange(sourceNode);
+            LiteralRange range = JexlASTHelper.findRange().recursively().getRange(sourceNode);
             if (range == null) {
                 QueryException qe = new QueryException(DatawaveErrorCode.MULTIPLE_RANGES_IN_EXPRESSION);
                 throw new DatawaveFatalQueryException(qe);

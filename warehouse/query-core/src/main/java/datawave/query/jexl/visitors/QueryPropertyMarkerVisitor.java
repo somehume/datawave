@@ -7,7 +7,7 @@ import datawave.query.jexl.nodes.ExceededTermThresholdMarkerJexlNode;
 import datawave.query.jexl.nodes.ExceededValueThresholdMarkerJexlNode;
 import datawave.query.jexl.nodes.IndexHoleMarkerJexlNode;
 import datawave.query.jexl.nodes.QueryPropertyMarker;
-import datawave.query.jexl.nodes.SingleValueEval;
+import datawave.query.jexl.nodes.BoundedRange;
 import org.apache.commons.jexl2.parser.ASTAndNode;
 import org.apache.commons.jexl2.parser.ASTAssignment;
 import org.apache.commons.jexl2.parser.ASTEvaluationOnly;
@@ -52,7 +52,7 @@ public class QueryPropertyMarkerVisitor extends BaseVisitor {
         TYPE_IDENTIFIERS.add(ExceededValueThresholdMarkerJexlNode.class.getSimpleName());
         TYPE_IDENTIFIERS.add(ExceededTermThresholdMarkerJexlNode.class.getSimpleName());
         TYPE_IDENTIFIERS.add(ExceededOrThresholdMarkerJexlNode.class.getSimpleName());
-        TYPE_IDENTIFIERS.add(SingleValueEval.class.getSimpleName());
+        TYPE_IDENTIFIERS.add(BoundedRange.class.getSimpleName());
     }
     
     private QueryPropertyMarkerVisitor() {}

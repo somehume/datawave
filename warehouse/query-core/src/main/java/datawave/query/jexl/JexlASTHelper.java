@@ -20,7 +20,7 @@ import datawave.query.jexl.nodes.ExceededOrThresholdMarkerJexlNode;
 import datawave.query.jexl.nodes.ExceededTermThresholdMarkerJexlNode;
 import datawave.query.jexl.nodes.ExceededValueThresholdMarkerJexlNode;
 import datawave.query.jexl.nodes.QueryPropertyMarker;
-import datawave.query.jexl.nodes.SingleValueEval;
+import datawave.query.jexl.nodes.BoundedRange;
 import datawave.query.jexl.visitors.BaseVisitor;
 import datawave.query.jexl.visitors.JexlStringBuildingVisitor;
 import datawave.query.jexl.visitors.QueryPropertyMarkerVisitor;
@@ -447,6 +447,8 @@ public class JexlASTHelper {
         } else if (node instanceof ASTMethodNode) {
             // Don't get identifiers under a method node, they are method names
             return;
+        } else if (node instanceof ASTAssignment) {
+            // Don't get identifiers under assignments as they are only used for QueryPropertyMarkers
         } else if (node instanceof ASTIdentifier) {
             identifiers.add((ASTIdentifier) node);
         } else {
@@ -783,15 +785,10 @@ public class JexlASTHelper {
     }
     
     public static class RangeFinder {
-        boolean taggedOnly = false;
         boolean includeDelayed = true;
         MetadataHelper helper = null;
         Set<String> dataTypeFilter = null;
-        
-        public RangeFinder taggedOnly() {
-            taggedOnly = true;
-            return this;
-        }
+        boolean recursive = false;
         
         public RangeFinder notDelayed() {
             includeDelayed = false;
@@ -804,28 +801,41 @@ public class JexlASTHelper {
             return this;
         }
         
+        public RangeFinder recursively() {
+            this.recursive = true;
+            return this;
+        }
+        
         public boolean isRange(JexlNode node) {
             return getRange(node) != null;
         }
         
         public LiteralRange getRange(JexlNode node) {
-            boolean tagged = SingleValueEval.instanceOf(node);
+            LiteralRange range = _getRange(node);
+            if (range == null && recursive) {
+                for (int i = 0; range == null && i < node.jjtGetNumChildren(); i++) {
+                    range = getRange(node.jjtGetChild(i));
+                }
+            }
+            return range;
+        }
+        
+        private LiteralRange _getRange(JexlNode node) {
+            boolean tagged = BoundedRange.instanceOf(node);
             
             // first unwrap any delayed expression except for a tag
             if (includeDelayed && QueryPropertyMarker.instanceOf(node, null) && !tagged) {
                 node = QueryPropertyMarker.getQueryPropertySource(node, null);
-                tagged = SingleValueEval.instanceOf(node);
+                tagged = BoundedRange.instanceOf(node);
             }
             
-            // if it must be tagged, then check for a tag
-            if (taggedOnly && !tagged) {
+            // It must be tagged
+            if (!tagged) {
                 return null;
             }
             
             // remove the tag
-            if (tagged) {
-                node = SingleValueEval.getSingleValueSource(node);
-            }
+            node = BoundedRange.getBoundedRangeSource(node);
             
             // remove reference and expression nodes
             node = dereference(node);
@@ -840,12 +850,15 @@ public class JexlASTHelper {
                 return null;
             }
             
+            JexlNode child1 = dereference(node.jjtGetChild(0));
+            JexlNode child2 = dereference(node.jjtGetChild(1));
+            
             // and the fieldnames match
             String fieldName1 = null;
             String fieldName2 = null;
             try {
-                fieldName1 = JexlASTHelper.getIdentifier(node.jjtGetChild(0));
-                fieldName2 = JexlASTHelper.getIdentifier(node.jjtGetChild(1));
+                fieldName1 = JexlASTHelper.getIdentifier(child1);
+                fieldName2 = JexlASTHelper.getIdentifier(child2);
             } catch (NoSuchElementException e) {}
             if (fieldName1 == null || fieldName2 == null || !fieldName1.equals(fieldName2)) {
                 return null;
@@ -864,8 +877,8 @@ public class JexlASTHelper {
             Object literal1 = null;
             Object literal2 = null;
             try {
-                literal1 = JexlASTHelper.getLiteralValue(node.jjtGetChild(0));
-                literal2 = JexlASTHelper.getLiteralValue(node.jjtGetChild(1));
+                literal1 = JexlASTHelper.getLiteralValue(child1);
+                literal2 = JexlASTHelper.getLiteralValue(child2);
             } catch (NoSuchElementException e) {}
             
             if (literal1 == null || literal2 == null) {
@@ -874,20 +887,21 @@ public class JexlASTHelper {
             
             LiteralRange<?> range = null;
             List<JexlNode> thisRangesNodes = new ArrayList<>();
+            JexlNode[] children = new JexlNode[] {child1, child2};
             if (literal1 instanceof String || literal2 instanceof String) {
-                range = getStringBoundedRange(node, new LiteralRange<>(fieldName1, LiteralRange.NodeOperand.AND));
+                range = getStringBoundedRange(children, new LiteralRange<>(fieldName1, LiteralRange.NodeOperand.AND));
             } else if (literal1 instanceof BigDecimal || literal2 instanceof BigDecimal) {
-                range = getBigDecimalBoundedRange(node, new LiteralRange<>(fieldName1, LiteralRange.NodeOperand.AND));
+                range = getBigDecimalBoundedRange(children, new LiteralRange<>(fieldName1, LiteralRange.NodeOperand.AND));
             } else if (literal1 instanceof Double || literal2 instanceof Double) {
-                range = getDoubleBoundedRange(node, new LiteralRange<>(fieldName1, LiteralRange.NodeOperand.AND));
+                range = getDoubleBoundedRange(children, new LiteralRange<>(fieldName1, LiteralRange.NodeOperand.AND));
             } else if (literal1 instanceof Float || literal2 instanceof Float) {
-                range = getFloatBoundedRange(node, new LiteralRange<>(fieldName1, LiteralRange.NodeOperand.AND));
+                range = getFloatBoundedRange(children, new LiteralRange<>(fieldName1, LiteralRange.NodeOperand.AND));
             } else if (literal1 instanceof BigInteger || literal2 instanceof BigInteger) {
-                range = getBigIntegerBoundedRange(node, new LiteralRange<>(fieldName1, LiteralRange.NodeOperand.AND));
+                range = getBigIntegerBoundedRange(children, new LiteralRange<>(fieldName1, LiteralRange.NodeOperand.AND));
             } else if (literal1 instanceof Long || literal2 instanceof Long) {
-                range = getLongBoundedRange(node, new LiteralRange<>(fieldName1, LiteralRange.NodeOperand.AND));
+                range = getLongBoundedRange(children, new LiteralRange<>(fieldName1, LiteralRange.NodeOperand.AND));
             } else if (literal1 instanceof Integer || literal2 instanceof Integer) {
-                range = getIntegerBoundedRange(node, new LiteralRange<>(fieldName1, LiteralRange.NodeOperand.AND));
+                range = getIntegerBoundedRange(children, new LiteralRange<>(fieldName1, LiteralRange.NodeOperand.AND));
             } else {
                 QueryException qe = new QueryException(DatawaveErrorCode.NODE_LITERAL_TYPE_ASCERTAIN_ERROR, MessageFormat.format("{0}", literal1));
                 throw new DatawaveFatalQueryException(qe);
@@ -895,34 +909,33 @@ public class JexlASTHelper {
             
             if (range.isBounded()) {
                 return range;
-            } else {
-                return null;
             }
+            return null;
         }
     }
     
-    public static LiteralRange<String> getStringBoundedRange(JexlNode parent, LiteralRange<String> range) {
+    public static LiteralRange<String> getStringBoundedRange(JexlNode[] children, LiteralRange<String> range) {
         for (int i = 0; i < 2; i++) {
-            JexlNode node = parent.jjtGetChild(i);
-            String newFieldName = JexlASTHelper.getIdentifier(node);
+            JexlNode child = children[i];
+            String newFieldName = JexlASTHelper.getIdentifier(child);
             
             if (range.getFieldName().equals(newFieldName)) {
-                String literal = String.valueOf(JexlASTHelper.getLiteralValue(node));
+                String literal = String.valueOf(JexlASTHelper.getLiteralValue(child));
                 
-                if (INCLUSIVE_RANGE_NODE_CLASSES.contains(node.getClass())) {
-                    if (LESS_THAN_NODE_CLASSES.contains(node.getClass())) {
-                        range.updateUpper(literal, true, node);
+                if (INCLUSIVE_RANGE_NODE_CLASSES.contains(child.getClass())) {
+                    if (LESS_THAN_NODE_CLASSES.contains(child.getClass())) {
+                        range.updateUpper(literal, true, child);
                     } else {
-                        range.updateLower(literal, true, node);
+                        range.updateLower(literal, true, child);
                     }
-                } else if (EXCLUSIVE_RANGE_NODE_CLASSES.contains(node.getClass())) {
-                    if (LESS_THAN_NODE_CLASSES.contains(node.getClass())) {
-                        range.updateUpper(literal, false, node);
+                } else if (EXCLUSIVE_RANGE_NODE_CLASSES.contains(child.getClass())) {
+                    if (LESS_THAN_NODE_CLASSES.contains(child.getClass())) {
+                        range.updateUpper(literal, false, child);
                     } else {
-                        range.updateLower(literal, false, node);
+                        range.updateLower(literal, false, child);
                     }
                 } else {
-                    log.warn("Could not determine class of node: " + node);
+                    log.warn("Could not determine class of node: " + child);
                 }
             }
         }
@@ -930,28 +943,28 @@ public class JexlASTHelper {
         return range;
     }
     
-    public static LiteralRange<Integer> getIntegerBoundedRange(JexlNode parent, LiteralRange<Integer> range) {
+    public static LiteralRange<Integer> getIntegerBoundedRange(JexlNode[] children, LiteralRange<Integer> range) {
         for (int i = 0; i < 2; i++) {
-            JexlNode node = parent.jjtGetChild(i);
-            String newFieldName = JexlASTHelper.getIdentifier(node);
+            JexlNode child = children[i];
+            String newFieldName = JexlASTHelper.getIdentifier(child);
             
             if (range.getFieldName() == null || range.getFieldName().equals(newFieldName)) {
-                Integer literal = (Integer) JexlASTHelper.getLiteralValue(node);
+                Integer literal = (Integer) JexlASTHelper.getLiteralValue(child);
                 
-                if (INCLUSIVE_RANGE_NODE_CLASSES.contains(node.getClass())) {
-                    if (LESS_THAN_NODE_CLASSES.contains(node.getClass())) {
-                        range.updateUpper(literal, true, node);
+                if (INCLUSIVE_RANGE_NODE_CLASSES.contains(child.getClass())) {
+                    if (LESS_THAN_NODE_CLASSES.contains(child.getClass())) {
+                        range.updateUpper(literal, true, child);
                     } else {
-                        range.updateLower(literal, true, node);
+                        range.updateLower(literal, true, child);
                     }
-                } else if (EXCLUSIVE_RANGE_NODE_CLASSES.contains(node.getClass())) {
-                    if (LESS_THAN_NODE_CLASSES.contains(node.getClass())) {
-                        range.updateUpper(literal, false, node);
+                } else if (EXCLUSIVE_RANGE_NODE_CLASSES.contains(child.getClass())) {
+                    if (LESS_THAN_NODE_CLASSES.contains(child.getClass())) {
+                        range.updateUpper(literal, false, child);
                     } else {
-                        range.updateLower(literal, false, node);
+                        range.updateLower(literal, false, child);
                     }
                 } else {
-                    log.warn("Could not determine class of node: " + node);
+                    log.warn("Could not determine class of node: " + child);
                 }
             }
         }
@@ -959,28 +972,28 @@ public class JexlASTHelper {
         return range;
     }
     
-    public static LiteralRange<Long> getLongBoundedRange(JexlNode parent, LiteralRange<Long> range) {
+    public static LiteralRange<Long> getLongBoundedRange(JexlNode[] children, LiteralRange<Long> range) {
         for (int i = 0; i < 2; i++) {
-            JexlNode node = parent.jjtGetChild(i);
-            String newFieldName = JexlASTHelper.getIdentifier(node);
+            JexlNode child = children[i];
+            String newFieldName = JexlASTHelper.getIdentifier(child);
             
             if (range.getFieldName() == null || range.getFieldName().equals(newFieldName)) {
-                Long literal = (Long) JexlASTHelper.getLiteralValue(node);
+                Long literal = (Long) JexlASTHelper.getLiteralValue(child);
                 
-                if (INCLUSIVE_RANGE_NODE_CLASSES.contains(node.getClass())) {
-                    if (LESS_THAN_NODE_CLASSES.contains(node.getClass())) {
-                        range.updateUpper(literal, true, node);
+                if (INCLUSIVE_RANGE_NODE_CLASSES.contains(child.getClass())) {
+                    if (LESS_THAN_NODE_CLASSES.contains(child.getClass())) {
+                        range.updateUpper(literal, true, child);
                     } else {
-                        range.updateLower(literal, true, node);
+                        range.updateLower(literal, true, child);
                     }
-                } else if (EXCLUSIVE_RANGE_NODE_CLASSES.contains(node.getClass())) {
-                    if (LESS_THAN_NODE_CLASSES.contains(node.getClass())) {
-                        range.updateUpper(literal, false, node);
+                } else if (EXCLUSIVE_RANGE_NODE_CLASSES.contains(child.getClass())) {
+                    if (LESS_THAN_NODE_CLASSES.contains(child.getClass())) {
+                        range.updateUpper(literal, false, child);
                     } else {
-                        range.updateLower(literal, false, node);
+                        range.updateLower(literal, false, child);
                     }
                 } else {
-                    log.warn("Could not determine class of node: " + node);
+                    log.warn("Could not determine class of node: " + child);
                 }
             }
         }
@@ -988,28 +1001,28 @@ public class JexlASTHelper {
         return range;
     }
     
-    public static LiteralRange<BigInteger> getBigIntegerBoundedRange(JexlNode parent, LiteralRange<BigInteger> range) {
+    public static LiteralRange<BigInteger> getBigIntegerBoundedRange(JexlNode[] children, LiteralRange<BigInteger> range) {
         for (int i = 0; i < 2; i++) {
-            JexlNode node = parent.jjtGetChild(i);
-            String newFieldName = JexlASTHelper.getIdentifier(node);
+            JexlNode child = children[i];
+            String newFieldName = JexlASTHelper.getIdentifier(child);
             
             if (range.getFieldName().equals(newFieldName)) {
-                BigInteger literal = (BigInteger) JexlASTHelper.getLiteralValue(node);
+                BigInteger literal = (BigInteger) JexlASTHelper.getLiteralValue(child);
                 
-                if (INCLUSIVE_RANGE_NODE_CLASSES.contains(node.getClass())) {
-                    if (LESS_THAN_NODE_CLASSES.contains(node.getClass())) {
-                        range.updateUpper(literal, true, node);
+                if (INCLUSIVE_RANGE_NODE_CLASSES.contains(child.getClass())) {
+                    if (LESS_THAN_NODE_CLASSES.contains(child.getClass())) {
+                        range.updateUpper(literal, true, child);
                     } else {
-                        range.updateLower(literal, true, node);
+                        range.updateLower(literal, true, child);
                     }
-                } else if (EXCLUSIVE_RANGE_NODE_CLASSES.contains(node.getClass())) {
-                    if (LESS_THAN_NODE_CLASSES.contains(node.getClass())) {
-                        range.updateUpper(literal, false, node);
+                } else if (EXCLUSIVE_RANGE_NODE_CLASSES.contains(child.getClass())) {
+                    if (LESS_THAN_NODE_CLASSES.contains(child.getClass())) {
+                        range.updateUpper(literal, false, child);
                     } else {
-                        range.updateLower(literal, false, node);
+                        range.updateLower(literal, false, child);
                     }
                 } else {
-                    log.warn("Could not determine class of node: " + node);
+                    log.warn("Could not determine class of node: " + child);
                 }
             }
         }
@@ -1017,28 +1030,28 @@ public class JexlASTHelper {
         return range;
     }
     
-    public static LiteralRange<Float> getFloatBoundedRange(JexlNode parent, LiteralRange<Float> range) {
+    public static LiteralRange<Float> getFloatBoundedRange(JexlNode[] children, LiteralRange<Float> range) {
         for (int i = 0; i < 2; i++) {
-            JexlNode node = parent.jjtGetChild(i);
-            String newFieldName = JexlASTHelper.getIdentifier(node);
+            JexlNode child = children[i];
+            String newFieldName = JexlASTHelper.getIdentifier(child);
             
             if (range.getFieldName().equals(newFieldName)) {
-                Float literal = (Float) JexlASTHelper.getLiteralValue(node);
+                Float literal = (Float) JexlASTHelper.getLiteralValue(child);
                 
-                if (INCLUSIVE_RANGE_NODE_CLASSES.contains(node.getClass())) {
-                    if (LESS_THAN_NODE_CLASSES.contains(node.getClass())) {
-                        range.updateUpper(literal, true, node);
+                if (INCLUSIVE_RANGE_NODE_CLASSES.contains(child.getClass())) {
+                    if (LESS_THAN_NODE_CLASSES.contains(child.getClass())) {
+                        range.updateUpper(literal, true, child);
                     } else {
-                        range.updateLower(literal, true, node);
+                        range.updateLower(literal, true, child);
                     }
-                } else if (EXCLUSIVE_RANGE_NODE_CLASSES.contains(node.getClass())) {
-                    if (LESS_THAN_NODE_CLASSES.contains(node.getClass())) {
-                        range.updateUpper(literal, false, node);
+                } else if (EXCLUSIVE_RANGE_NODE_CLASSES.contains(child.getClass())) {
+                    if (LESS_THAN_NODE_CLASSES.contains(child.getClass())) {
+                        range.updateUpper(literal, false, child);
                     } else {
-                        range.updateLower(literal, false, node);
+                        range.updateLower(literal, false, child);
                     }
                 } else {
-                    log.warn("Could not determine class of node: " + node);
+                    log.warn("Could not determine class of node: " + child);
                 }
             }
         }
@@ -1046,28 +1059,28 @@ public class JexlASTHelper {
         return range;
     }
     
-    public static LiteralRange<Double> getDoubleBoundedRange(JexlNode parent, LiteralRange<Double> range) {
+    public static LiteralRange<Double> getDoubleBoundedRange(JexlNode[] children, LiteralRange<Double> range) {
         for (int i = 0; i < 2; i++) {
-            JexlNode node = parent.jjtGetChild(i);
-            String newFieldName = JexlASTHelper.getIdentifier(node);
+            JexlNode child = children[i];
+            String newFieldName = JexlASTHelper.getIdentifier(child);
             
             if (range.getFieldName().equals(newFieldName)) {
-                Double literal = (Double) JexlASTHelper.getLiteralValue(node);
+                Double literal = (Double) JexlASTHelper.getLiteralValue(child);
                 
-                if (INCLUSIVE_RANGE_NODE_CLASSES.contains(node.getClass())) {
-                    if (LESS_THAN_NODE_CLASSES.contains(node.getClass())) {
-                        range.updateUpper(literal, true, node);
+                if (INCLUSIVE_RANGE_NODE_CLASSES.contains(child.getClass())) {
+                    if (LESS_THAN_NODE_CLASSES.contains(child.getClass())) {
+                        range.updateUpper(literal, true, child);
                     } else {
-                        range.updateLower(literal, true, node);
+                        range.updateLower(literal, true, child);
                     }
-                } else if (EXCLUSIVE_RANGE_NODE_CLASSES.contains(node.getClass())) {
-                    if (LESS_THAN_NODE_CLASSES.contains(node.getClass())) {
-                        range.updateUpper(literal, false, node);
+                } else if (EXCLUSIVE_RANGE_NODE_CLASSES.contains(child.getClass())) {
+                    if (LESS_THAN_NODE_CLASSES.contains(child.getClass())) {
+                        range.updateUpper(literal, false, child);
                     } else {
-                        range.updateLower(literal, false, node);
+                        range.updateLower(literal, false, child);
                     }
                 } else {
-                    log.warn("Could not determine class of node: " + node);
+                    log.warn("Could not determine class of node: " + child);
                 }
             }
         }
@@ -1075,28 +1088,28 @@ public class JexlASTHelper {
         return range;
     }
     
-    public static LiteralRange<BigDecimal> getBigDecimalBoundedRange(JexlNode parent, LiteralRange<BigDecimal> range) {
+    public static LiteralRange<BigDecimal> getBigDecimalBoundedRange(JexlNode[] children, LiteralRange<BigDecimal> range) {
         for (int i = 0; i < 2; i++) {
-            JexlNode node = parent.jjtGetChild(i);
-            String newFieldName = JexlASTHelper.getIdentifier(node);
+            JexlNode child = children[i];
+            String newFieldName = JexlASTHelper.getIdentifier(child);
             
             if (range.getFieldName().equals(newFieldName)) {
-                BigDecimal literal = (BigDecimal) JexlASTHelper.getLiteralValue(node);
+                BigDecimal literal = (BigDecimal) JexlASTHelper.getLiteralValue(child);
                 
-                if (INCLUSIVE_RANGE_NODE_CLASSES.contains(node.getClass())) {
-                    if (LESS_THAN_NODE_CLASSES.contains(node.getClass())) {
-                        range.updateUpper(literal, true, node);
+                if (INCLUSIVE_RANGE_NODE_CLASSES.contains(child.getClass())) {
+                    if (LESS_THAN_NODE_CLASSES.contains(child.getClass())) {
+                        range.updateUpper(literal, true, child);
                     } else {
-                        range.updateLower(literal, true, node);
+                        range.updateLower(literal, true, child);
                     }
-                } else if (EXCLUSIVE_RANGE_NODE_CLASSES.contains(node.getClass())) {
-                    if (LESS_THAN_NODE_CLASSES.contains(node.getClass())) {
-                        range.updateUpper(literal, false, node);
+                } else if (EXCLUSIVE_RANGE_NODE_CLASSES.contains(child.getClass())) {
+                    if (LESS_THAN_NODE_CLASSES.contains(child.getClass())) {
+                        range.updateUpper(literal, false, child);
                     } else {
-                        range.updateLower(literal, false, node);
+                        range.updateLower(literal, false, child);
                     }
                 } else {
-                    log.warn("Could not determine class of node: " + node);
+                    log.warn("Could not determine class of node: " + child);
                 }
             }
         }

@@ -2,9 +2,9 @@ package datawave.query.jexl.visitors;
 
 import datawave.query.config.ShardQueryConfiguration;
 import datawave.query.jexl.JexlASTHelper;
+import datawave.query.jexl.nodes.BoundedRange;
 import datawave.query.jexl.nodes.IndexHoleMarkerJexlNode;
 import datawave.query.Constants;
-import datawave.query.jexl.LiteralRange;
 import datawave.query.jexl.nodes.ExceededOrThresholdMarkerJexlNode;
 import datawave.query.jexl.nodes.ExceededTermThresholdMarkerJexlNode;
 import datawave.query.jexl.nodes.ExceededValueThresholdMarkerJexlNode;
@@ -68,10 +68,8 @@ import org.apache.commons.jexl2.parser.SimpleNode;
 import org.apache.commons.lang.StringUtils;
 import org.apache.log4j.Logger;
 
-import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Set;
 
@@ -274,7 +272,7 @@ public class ExecutableDeterminationVisitor extends BaseVisitor {
         // all children must be executable for a script to be executable
         Set<STATE> states = new HashSet<>();
         for (int i = 0; i < node.jjtGetNumChildren(); i++) {
-            states.add((STATE) (node.jjtGetChild(i).jjtAccept(this, data)));
+            states.add((STATE) (node.jjtGetChild(i).jjtAccept(this, data + PREFIX)));
         }
         if (log.isTraceEnabled()) {
             log.trace("node:" + PrintingVisitor.formattedQueryString(node));
@@ -472,10 +470,16 @@ public class ExecutableDeterminationVisitor extends BaseVisitor {
         // _ANYFIELD_ values, then we cannot execute these nodes
         if (ExceededTermThresholdMarkerJexlNode.instanceOf(node)) {
             state = STATE.NON_EXECUTABLE;
+            if (output != null) {
+                output.writeLine(data + node.toString() + "( Exceeded Term Threshold ) -> " + state);
+            }
         }
         // if an ivarator the return true, else check out children
         else if (ExceededValueThresholdMarkerJexlNode.instanceOf(node) || ExceededOrThresholdMarkerJexlNode.instanceOf(node)) {
             state = STATE.EXECUTABLE;
+            if (output != null) {
+                output.writeLine(data + node.toString() + "( Exceeded Or / Value Threshold ) -> " + state);
+            }
         }
         // if a delayed predicate, then this is not-executable against the index by choice
         else if (ASTDelayedPredicate.instanceOf(node) || ASTEvaluationOnly.instanceOf(node)) {
@@ -486,7 +490,15 @@ public class ExecutableDeterminationVisitor extends BaseVisitor {
             } else {
                 state = STATE.NON_EXECUTABLE;
             }
-            
+            if (output != null) {
+                output.writeLine(data + node.toString() + "( delayed/eval only predicate ) -> " + state);
+            }
+        } else if (BoundedRange.instanceOf(node)) {
+            state = STATE.EXECUTABLE;
+            if (output != null) {
+                output.writeLine(data + node.toString() + '(' + JexlASTHelper.getIdentifierNames(BoundedRange.getBoundedRangeSource(node))
+                                + " bounded range) -> " + state);
+            }
         } else if (IndexHoleMarkerJexlNode.instanceOf(node)) {
             state = STATE.NON_EXECUTABLE;
         } else {
@@ -616,13 +628,6 @@ public class ExecutableDeterminationVisitor extends BaseVisitor {
         return false;
     }
     
-    private boolean isWithinBoundedRange(JexlNode node) {
-        if (node.jjtGetParent() instanceof ASTAndNode) {
-            return JexlASTHelper.findRange().isRange(node.jjtGetParent());
-        }
-        return false;
-    }
-    
     public ExecutableDeterminationVisitor setNonEventFields(Set<String> nonEventFields) {
         this.nonEventFields = nonEventFields;
         return this;
@@ -644,8 +649,6 @@ public class ExecutableDeterminationVisitor extends BaseVisitor {
         // results.
         if (isNoFieldOnly(node)) {
             state = STATE.IGNORABLE;
-        } else if (isWithinBoundedRange(node)) {
-            state = STATE.EXECUTABLE;
         } else if (isNonEvent(node)) {
             state = STATE.ERROR;
         } else {

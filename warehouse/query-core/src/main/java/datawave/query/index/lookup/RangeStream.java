@@ -18,6 +18,7 @@ import datawave.query.jexl.JexlASTHelper;
 import datawave.query.jexl.JexlASTHelper.IdentifierOpLiteral;
 import datawave.query.jexl.JexlNodeFactory;
 import datawave.query.jexl.LiteralRange;
+import datawave.query.jexl.nodes.BoundedRange;
 import datawave.query.jexl.nodes.ExceededOrThresholdMarkerJexlNode;
 import datawave.query.jexl.nodes.ExceededTermThresholdMarkerJexlNode;
 import datawave.query.jexl.nodes.ExceededValueThresholdMarkerJexlNode;
@@ -644,13 +645,6 @@ public class RangeStream extends BaseVisitor implements CloseableIterable<QueryP
         return false;
     }
     
-    private boolean isWithinBoundedRange(JexlNode node) {
-        if (node.jjtGetParent() instanceof ASTAndNode) {
-            return JexlASTHelper.findRange().isRange(node.jjtGetParent());
-        }
-        return false;
-    }
-    
     @Override
     public Object visit(ASTLTNode node, Object data) {
         if (isUnOrNotFielded(node)) {
@@ -659,10 +653,6 @@ public class RangeStream extends BaseVisitor implements CloseableIterable<QueryP
         
         if (isUnindexed(node)) {
             return ScannerStream.unindexed(node);
-        }
-        
-        if (isWithinBoundedRange(node)) {
-            return ScannerStream.noData(node);
         }
         
         return ScannerStream.delayedExpression(node);
@@ -678,10 +668,6 @@ public class RangeStream extends BaseVisitor implements CloseableIterable<QueryP
             return ScannerStream.unindexed(node);
         }
         
-        if (isWithinBoundedRange(node)) {
-            return ScannerStream.noData(node);
-        }
-        
         return ScannerStream.delayedExpression(node);
     }
     
@@ -695,10 +681,6 @@ public class RangeStream extends BaseVisitor implements CloseableIterable<QueryP
             return ScannerStream.unindexed(node);
         }
         
-        if (isWithinBoundedRange(node)) {
-            return ScannerStream.noData(node);
-        }
-        
         return ScannerStream.delayedExpression(node);
     }
     
@@ -710,10 +692,6 @@ public class RangeStream extends BaseVisitor implements CloseableIterable<QueryP
         
         if (isUnindexed(node)) {
             return ScannerStream.unindexed(node);
-        }
-        
-        if (isWithinBoundedRange(node)) {
-            return ScannerStream.noData(node);
         }
         
         return ScannerStream.delayedExpression(node);
@@ -770,6 +748,9 @@ public class RangeStream extends BaseVisitor implements CloseableIterable<QueryP
             return ScannerStream.ignored(node);
         } else if (IndexHoleMarkerJexlNode.instanceOf(node)) {
             return ScannerStream.ignored(node);
+        } else if (BoundedRange.instanceOf(node)) {
+            // here we must have a bounded range that was not expanded, so there must be no hits
+            return ScannerStream.noData(node);
         } else {
             return descend(node, data);
         }

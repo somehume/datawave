@@ -67,7 +67,6 @@ import datawave.query.jexl.visitors.PushdownMissingIndexRangeNodesVisitor;
 import datawave.query.jexl.visitors.PushdownUnexecutableNodesVisitor;
 import datawave.query.jexl.visitors.QueryModelVisitor;
 import datawave.query.jexl.visitors.QueryOptionsFromQueryVisitor;
-import datawave.query.jexl.visitors.RangeTaggingVisitor;
 import datawave.query.jexl.visitors.RangeConjunctionRebuildingVisitor;
 import datawave.query.jexl.visitors.RegexFunctionVisitor;
 import datawave.query.jexl.visitors.SetMembershipVisitor;
@@ -174,11 +173,6 @@ public class DefaultQueryPlanner extends QueryPlanner {
      * Disables the index expansion function
      */
     protected boolean disableExpandIndexFunction = false;
-    
-    /**
-     * Disables the range coalescing visitor
-     */
-    protected boolean disableRangeCoalescing = false;
     
     /**
      * Allows developers to cache data types
@@ -306,7 +300,6 @@ public class DefaultQueryPlanner extends QueryPlanner {
         setDisableCompositeFields(other.disableCompositeFields);
         setDisableTestNonExistentFields(other.disableTestNonExistentFields);
         setDisableExpandIndexFunction(other.disableExpandIndexFunction);
-        setDisableRangeCoalescing(other.disableRangeCoalescing);
         rules.addAll(other.rules);
         queryIteratorClazz = other.queryIteratorClazz;
         setMetadataHelper(other.getMetadataHelper());
@@ -1002,20 +995,6 @@ public class DefaultQueryPlanner extends QueryPlanner {
             stopwatch.stop();
         }
         
-        if (!disableRangeCoalescing) {
-            stopwatch = timers.newStartedStopwatch("DefaultQueryPlanner - Coalesce ranges");
-            
-            // Coalesce any bounded ranges into separate AND subtrees
-            queryTree = RangeTaggingVisitor.tagRanges(queryTree);
-            
-            if (log.isDebugEnabled()) {
-                logQuery(queryTree, "Query after ranges were coalesced:");
-            }
-            
-            stopwatch.stop();
-            
-        }
-        
         // apply the node transform rules
         // running it here before any regex or range expansions to enable potentially pushing down terms before index lookups
         queryTree = applyNodeTransformRules(queryTree, getTransformRules(), config, metadataHelper, "Pre regex/range expansions");
@@ -1162,6 +1141,9 @@ public class DefaultQueryPlanner extends QueryPlanner {
             
             queryTree = ExpandCompositeTerms.expandTerms(config, metadataHelper, queryTree);
             stopwatch.stop();
+            if (log.isDebugEnabled()) {
+                logQuery(queryTree, "Query after expanding composite terms:");
+            }
         }
         
         if (!disableBoundedLookup) {
@@ -2317,14 +2299,6 @@ public class DefaultQueryPlanner extends QueryPlanner {
     
     public boolean getDisableExpandIndexFunction() {
         return disableExpandIndexFunction;
-    }
-    
-    public void setDisableRangeCoalescing(boolean disableRangeCoalescing) {
-        this.disableRangeCoalescing = disableRangeCoalescing;
-    }
-    
-    public boolean getDisableRangeCoalescing() {
-        return disableRangeCoalescing;
     }
     
     /*

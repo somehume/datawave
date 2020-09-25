@@ -182,7 +182,6 @@ public class LuceneQueryTest extends AbstractFunctionalQuery {
     @Test
     public void testMultiRangeSameField() throws Exception {
         log.info("------  testMultiRangeSameField  ------");
-        Logger.getLogger(DefaultQueryPlanner.class).setLevel(Level.DEBUG);
         logic.setMaxValueExpansionThreshold(1);
         logic.setFullTableScanEnabled(true);
         String code = "europe";
@@ -193,11 +192,13 @@ public class LuceneQueryTest extends AbstractFunctionalQuery {
         String query = CityField.CONTINENT.name() + ":\"" + code + "\"" + AND_OP + CityField.STATE.name() + ":[" + startState1 + " TO " + endState1 + "]"
                         + CityField.STATE.name() + ":[" + startState2 + " TO " + endState2 + "]";
         
-        String expect = CityField.CONTINENT.name() + " == '" + code + "'" + JEXL_AND_OP + "((ExceededValueThresholdMarkerJexlNode = true)" + JEXL_AND_OP + "("
-                        + CityField.STATE.name() + " >= '" + startState1 + "'" + JEXL_AND_OP + CityField.STATE.name() + " <= '" + endState1 + "'))"
-                        + JEXL_AND_OP + "((ExceededValueThresholdMarkerJexlNode = true)" + JEXL_AND_OP + "(" + CityField.STATE.name() + " >= '" + startState2
-                        + "'" + JEXL_AND_OP + CityField.STATE.name() + " <= '" + endState2 + "'))";
+        String expect = CityField.CONTINENT.name() + " == '" + code + "'" + JEXL_AND_OP
+                        + "((ExceededValueThresholdMarkerJexlNode = true) && ((BoundedRange = true)" + JEXL_AND_OP + "(" + CityField.STATE.name() + " >= '"
+                        + startState1 + "'" + JEXL_AND_OP + CityField.STATE.name() + " <= '" + endState1 + "')))" + JEXL_AND_OP
+                        + "((ExceededValueThresholdMarkerJexlNode = true) && ((BoundedRange = true)" + JEXL_AND_OP + "(" + CityField.STATE.name() + " >= '"
+                        + startState2 + "'" + JEXL_AND_OP + CityField.STATE.name() + " <= '" + endState2 + "')))";
         
+        System.out.println("Expected: " + expect);
         String plan = getPlan(query, true, true);
         assertEquals(expect, plan);
         assertPlanEquals(expect, plan);
