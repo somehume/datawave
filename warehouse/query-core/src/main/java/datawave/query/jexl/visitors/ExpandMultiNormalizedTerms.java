@@ -248,7 +248,7 @@ public class ExpandMultiNormalizedTerms extends RebuildingVisitor {
                                 JexlNode leNode = JexlNodeFactory.buildNode(new ASTLENode(ParserTreeConstants.JJTLENODE), fieldName, lowHi[1]);
                                 
                                 // now link em up
-                                return JexlNodeFactory.createAndNode(Arrays.asList(geNode, leNode));
+                                return BoundedRange.create(JexlNodeFactory.createAndNode(Arrays.asList(geNode, leNode)));
                             } catch (Exception ex) {
                                 if (log.isTraceEnabled()) {
                                     log.trace("Could not normalize " + term + " as cidr notation with: " + normalizer.getClass());

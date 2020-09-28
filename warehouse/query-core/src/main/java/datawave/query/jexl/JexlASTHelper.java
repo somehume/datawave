@@ -850,11 +850,15 @@ public class JexlASTHelper {
             
             // must be an and node at this point
             if (!(node instanceof ASTAndNode)) {
+                if (marked)
+                    throw new DatawaveFatalQueryException("A bounded range must contain an AND node with two bounds");
                 return null;
             }
             
             // and has exactly two children
             if (node.jjtGetNumChildren() != 2) {
+                if (marked)
+                    throw new DatawaveFatalQueryException("A bounded range must contain two bounds");
                 return null;
             }
             
@@ -869,6 +873,8 @@ public class JexlASTHelper {
                 fieldName2 = JexlASTHelper.getIdentifier(child2);
             } catch (NoSuchElementException e) {}
             if (fieldName1 == null || fieldName2 == null || !fieldName1.equals(fieldName2)) {
+                if (marked)
+                    throw new DatawaveFatalQueryException("A bounded range must contain two bounds against the same field");
                 return null;
             }
             
@@ -890,6 +896,8 @@ public class JexlASTHelper {
             } catch (NoSuchElementException e) {}
             
             if (literal1 == null || literal2 == null) {
+                if (marked)
+                    throw new DatawaveFatalQueryException("A bounded range must contain two bounds with literals");
                 return null;
             }
             
@@ -918,6 +926,9 @@ public class JexlASTHelper {
             if (range.isBounded()) {
                 return range;
             }
+            
+            if (marked)
+                throw new DatawaveFatalQueryException("A bounded range must contain bounds with comparable types");
             return null;
         }
     }

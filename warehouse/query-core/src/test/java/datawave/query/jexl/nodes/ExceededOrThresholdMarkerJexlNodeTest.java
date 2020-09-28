@@ -52,6 +52,8 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.TaskAttemptID;
 import org.apache.hadoop.mapreduce.task.TaskAttemptContextImpl;
+import org.apache.log4j.Level;
+import org.apache.log4j.Logger;
 import org.jboss.arquillian.container.test.api.Deployment;
 import org.jboss.arquillian.junit.Arquillian;
 import org.jboss.resteasy.specimpl.MultivaluedMapImpl;
@@ -279,6 +281,7 @@ public class ExceededOrThresholdMarkerJexlNodeTest {
     
     @Test
     public void combinedRangesOneIvaratorTest() throws Exception {
+        Logger.getLogger(DefaultQueryPlanner.class).setLevel(Level.DEBUG);
         // @formatter:off
         String query = "((BoundedRange = true) && (" + GEO_FIELD + " >= '" + INDEX_1 + "' && " + GEO_FIELD + " <= '" + INDEX_3 + "')) || " +
                 "((BoundedRange = true) && (" + GEO_FIELD + " >= '" + INDEX_5 + "' && " + GEO_FIELD + " <= '" + INDEX_7 + "')) || " +
@@ -341,7 +344,7 @@ public class ExceededOrThresholdMarkerJexlNodeTest {
         Assert.assertEquals(1, queryRanges.size());
         String id = queryRanges.get(0).substring(queryRanges.get(0).indexOf("id = '") + 6, queryRanges.get(0).indexOf("') && (field = 'GEO')"));
         Assert.assertEquals(
-                        "((ExceededValueThresholdMarkerJexlNode = true) && ((BoundedRange = true) && ((GEO <= '1f35553ac3ffb0ebff' && GEO >= '1f200364bda9c63d03')))) || ((ExceededOrThresholdMarkerJexlNode = true) && ((id = '"
+                        "((ExceededValueThresholdMarkerJexlNode = true) && ((BoundedRange = true) && (GEO >= '1f200364bda9c63d03' && GEO <= '1f35553ac3ffb0ebff'))) || ((ExceededOrThresholdMarkerJexlNode = true) && ((id = '"
                                         + id
                                         + "') && (field = 'GEO') && (params = '{\"ranges\":[[\"[1f0aaaaaaaaaaaaaaa\",\"1f1fffb0ebff104155]\"],[\"[1f2000228a00228a00\",\"1f20008a28008a2800]\"]]}')))",
                         queryRanges.get(0));

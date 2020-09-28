@@ -93,8 +93,10 @@ public class QueryModelVisitorTest {
         Reason reason = new Reason();
         boolean equal = TreeEqualityVisitor.isEqual(expectedScript, actualScript, reason);
         if (!equal) {
+            log.error("Expected " + JexlStringBuildingVisitor.buildQuery(expectedScript));
+            log.error("Actual   " + JexlStringBuildingVisitor.buildQuery(actualScript));
             log.error("Expected " + PrintingVisitor.formattedQueryString(expectedScript));
-            log.error("Actual " + PrintingVisitor.formattedQueryString(actualScript));
+            log.error("Actual   " + PrintingVisitor.formattedQueryString(actualScript));
         }
         Assert.assertTrue(reason.reason, equal);
     }
@@ -144,17 +146,18 @@ public class QueryModelVisitorTest {
     
     @Test
     public void multipleMappingsWithBounds() throws ParseException {
-        ASTJexlScript script = JexlASTHelper.parseJexlQuery("FOO > 'a' && FOO < 'z'");
-        ASTJexlScript expectedScript = JexlASTHelper.parseJexlQuery("(BAR1 > 'a' && BAR1 < 'z') || (BAR2 > 'a' && BAR2 < 'z')");
+        ASTJexlScript script = JexlASTHelper.parseJexlQuery("((BoundedRange = true) && (FOO > 'a' && FOO < 'z'))");
+        ASTJexlScript expectedScript = JexlASTHelper
+                        .parseJexlQuery("((BoundedRange = true) && (BAR1 > 'a' && BAR1 < 'z')) || ((BoundedRange = true) && (BAR2 > 'a' && BAR2 < 'z'))");
         ASTJexlScript actualScript = QueryModelVisitor.applyModel(script, model, allFields);
         assertScriptEquality(expectedScript, actualScript);
     }
     
     @Test
     public void multipleMappingsWithBoundsIdentity() throws ParseException {
-        ASTJexlScript script = JexlASTHelper.parseJexlQuery("CYCLIC_FIELD > 'a' && CYCLIC_FIELD < 'z'");
+        ASTJexlScript script = JexlASTHelper.parseJexlQuery("((BoundedRange = true) && (CYCLIC_FIELD > 'a' && CYCLIC_FIELD < 'z'))");
         ASTJexlScript expectedScript = JexlASTHelper
-                        .parseJexlQuery("(CYCLIC_FIELD > 'a' && CYCLIC_FIELD < 'z') || (CYCLIC_FIELD_ > 'a' && CYCLIC_FIELD_ < 'z')");
+                        .parseJexlQuery("(((BoundedRange = true) && (CYCLIC_FIELD > 'a' && CYCLIC_FIELD < 'z')) || ((BoundedRange = true) && (CYCLIC_FIELD_ > 'a' && CYCLIC_FIELD_ < 'z')))");
         ASTJexlScript actualScript = QueryModelVisitor.applyModel(script, model, allFields);
         assertScriptEquality(expectedScript, actualScript);
     }
