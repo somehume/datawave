@@ -329,7 +329,6 @@ public class CompositeIndexTest {
     
     @Test
     public void compositeWithoutIvaratorTest() throws Exception {
-        Logger.getLogger(DefaultQueryPlanner.class).setLevel(Level.DEBUG);
         // @formatter:off
         String query = "(((BoundedRange = true) && (" + GEO_FIELD + " >= '0202'" + JEXL_AND_OP + GEO_FIELD + " <= '020d'))" + JEXL_OR_OP +
                 "((BoundedRange = true) && (" + GEO_FIELD + " >= '030a'" + JEXL_AND_OP + GEO_FIELD + " <= '0335'))" + JEXL_OR_OP +

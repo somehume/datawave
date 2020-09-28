@@ -789,6 +789,7 @@ public class JexlASTHelper {
         MetadataHelper helper = null;
         Set<String> dataTypeFilter = null;
         boolean recursive = false;
+        boolean withMarker = true;
         
         public RangeFinder notDelayed() {
             includeDelayed = false;
@@ -803,6 +804,11 @@ public class JexlASTHelper {
         
         public RangeFinder recursively() {
             this.recursive = true;
+            return this;
+        }
+        
+        public RangeFinder notMarked() {
+            this.withMarker = false;
             return this;
         }
         
@@ -821,21 +827,23 @@ public class JexlASTHelper {
         }
         
         private LiteralRange _getRange(JexlNode node) {
-            boolean tagged = BoundedRange.instanceOf(node);
+            boolean marked = BoundedRange.instanceOf(node);
             
             // first unwrap any delayed expression except for a tag
-            if (includeDelayed && QueryPropertyMarker.instanceOf(node, null) && !tagged) {
+            if (includeDelayed && QueryPropertyMarker.instanceOf(node, null) && !marked) {
                 node = QueryPropertyMarker.getQueryPropertySource(node, null);
-                tagged = BoundedRange.instanceOf(node);
+                marked = BoundedRange.instanceOf(node);
             }
             
-            // It must be tagged
-            if (!tagged) {
+            // It must be marked
+            if (withMarker && !marked) {
                 return null;
             }
             
-            // remove the tag
-            node = BoundedRange.getBoundedRangeSource(node);
+            // remove the marker
+            if (marked) {
+                node = BoundedRange.getBoundedRangeSource(node);
+            }
             
             // remove reference and expression nodes
             node = dereference(node);
