@@ -137,8 +137,8 @@ public class JexlNumericQueryTest extends AbstractFunctionalQuery {
     public void testAndGteLte() throws Exception {
         log.info("------  testAndGteLte  ------");
         for (final TestCities city : TestCities.values()) {
-            String query = "(" + CityField.NUM.name() + GTE_OP + "100 " + AND_OP + CityField.NUM.name() + LTE_OP + "130 " + ") and " + CityField.CITY.name()
-                            + EQ_OP + "'" + city.name() + "'";
+            String query = "((BoundedRange = true) && (" + CityField.NUM.name() + GTE_OP + "100 " + AND_OP + CityField.NUM.name() + LTE_OP + "130 " + ")) and "
+                            + CityField.CITY.name() + EQ_OP + "'" + city.name() + "'";
             runTest(query, query);
         }
     }

@@ -211,7 +211,8 @@ public class JexlNodeFactory {
         
         switch (parentNodeChildCount) {
             case 0:
-                return orgNode;
+                // in this case we had no matches for the range, so this expression gets replaced with a FALSE node.
+                return new ASTFalseNode(ParserTreeConstants.JJTFALSENODE);
             case 1:
                 JexlNode child = parentNode.jjtGetChild(0);
                 JexlNodes.promote(parentNode, child);

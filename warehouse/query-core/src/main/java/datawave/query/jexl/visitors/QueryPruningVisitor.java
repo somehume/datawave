@@ -2,7 +2,7 @@ package datawave.query.jexl.visitors;
 
 import datawave.query.Constants;
 import datawave.query.jexl.JexlASTHelper;
-import datawave.query.jexl.JexlNodeFactory;
+import datawave.query.jexl.nodes.QueryPropertyMarker;
 import org.apache.commons.jexl2.parser.ASTAdditiveNode;
 import org.apache.commons.jexl2.parser.ASTAdditiveOperator;
 import org.apache.commons.jexl2.parser.ASTAmbiguous;
@@ -249,6 +249,11 @@ public class QueryPruningVisitor extends BaseVisitor {
     
     @Override
     public Object visit(ASTAndNode node, Object data) {
+        // do not process query property markers
+        // if (QueryPropertyMarker.instanceOf(node, null)) {
+        // return TruthState.UNKNOWN;
+        // }
+        
         // grab the node string before recursion so the original is intact
         String originalString = null;
         if (rewrite && debugPrune) {
@@ -362,7 +367,7 @@ public class QueryPruningVisitor extends BaseVisitor {
     
     @Override
     public Object visit(ASTAssignment node, Object data) {
-        return TruthState.TRUE;
+        return TruthState.UNKNOWN;
     }
     
     @Override

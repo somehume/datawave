@@ -74,6 +74,7 @@ import datawave.query.jexl.visitors.SortedUIDsRequiredVisitor;
 import datawave.query.jexl.visitors.TermCountingVisitor;
 import datawave.query.jexl.visitors.TreeFlatteningRebuildingVisitor;
 import datawave.query.jexl.visitors.UniqueExpressionTermsVisitor;
+import datawave.query.jexl.visitors.UnmarkedBoundedRangeDetectionVisitor;
 import datawave.query.jexl.visitors.ValidPatternVisitor;
 import datawave.query.model.QueryModel;
 import datawave.query.planner.comparator.DefaultQueryPlanComparator;
@@ -270,7 +271,7 @@ public class DefaultQueryPlanner extends QueryPlanner {
     /**
      * Control if automated logical query reduction should be done
      */
-    protected boolean reduceQuery = false;
+    protected boolean reduceQuery = true;
     
     /**
      * Control if when applying logical query reduction the pruned query should be shown via an assignment node in the resulting query. There may be a
@@ -405,17 +406,23 @@ public class DefaultQueryPlanner extends QueryPlanner {
             return DefaultQueryPlanner.emptyCloseableIterator();
         }
         
-        final QueryStopwatch timers = config.getTimers();
-        Tuple2<CloseableIterable<QueryPlan>,Boolean> queryRanges = getQueryRanges(scannerFactory, metadataHelper, config, queryTree);
+        boolean isFullTable = false;
+        Tuple2<CloseableIterable<QueryPlan>,Boolean> queryRanges = null;
         
-        // a full table scan is required if
-        final boolean isFullTable = queryRanges.second();
-        
-        // abort if we cannot handle full table scans
-        if (isFullTable && !config.getFullTableScanEnabled()) {
-            PreConditionFailedQueryException qe = new PreConditionFailedQueryException(DatawaveErrorCode.FULL_TABLE_SCAN_REQUIRED_BUT_DISABLED);
-            throw new FullTableScansDisallowedException(qe);
+        if (!config.isGeneratePlanOnly()) {
+            queryRanges = getQueryRanges(scannerFactory, metadataHelper, config, queryTree);
+            
+            // a full table scan is required if
+            isFullTable = queryRanges.second();
+            
+            // abort if we cannot handle full table scans
+            if (isFullTable && !config.getFullTableScanEnabled()) {
+                PreConditionFailedQueryException qe = new PreConditionFailedQueryException(DatawaveErrorCode.FULL_TABLE_SCAN_REQUIRED_BUT_DISABLED);
+                throw new FullTableScansDisallowedException(qe);
+            }
         }
+        
+        final QueryStopwatch timers = config.getTimers();
         
         TraceStopwatch stopwatch = timers.newStartedStopwatch("DefaultQueryPlanner - Rebuild JEXL String from AST");
         
@@ -434,10 +441,12 @@ public class DefaultQueryPlanner extends QueryPlanner {
         
         queryData.setQuery(newQueryString);
         
-        while (null == cfg) {
-            cfg = getQueryIterator(metadataHelper, config, settings, "", false);
+        if (!config.isGeneratePlanOnly()) {
+            while (null == cfg) {
+                cfg = getQueryIterator(metadataHelper, config, settings, "", false);
+            }
+            configureIterator(config, cfg, newQueryString, isFullTable);
         }
-        configureIterator(config, cfg, newQueryString, isFullTable);
         
         // Load the IteratorSettings into the QueryData instance
         queryData.setSettings(Lists.newArrayList(cfg));
@@ -449,42 +458,46 @@ public class DefaultQueryPlanner extends QueryPlanner {
         if (config.getMaxEvaluationPipelines() == 1)
             docsToCombineForEvaluation = -1;
         
-        // add the geo query comparator to sort by geo range granularity if this is a geo query
-        List<Comparator<QueryPlan>> queryPlanComparators = null;
-        if (config.isSortGeoWaveQueryRanges()) {
-            List<String> geoFields = new ArrayList<>();
-            for (String fieldName : config.getIndexedFields()) {
-                for (Type type : config.getQueryFieldsDatatypes().get(fieldName)) {
-                    if (type instanceof AbstractGeometryType) {
-                        geoFields.add(fieldName);
-                        break;
+        if (!config.isGeneratePlanOnly()) {
+            // add the geo query comparator to sort by geo range granularity if this is a geo query
+            List<Comparator<QueryPlan>> queryPlanComparators = null;
+            if (config.isSortGeoWaveQueryRanges()) {
+                List<String> geoFields = new ArrayList<>();
+                for (String fieldName : config.getIndexedFields()) {
+                    for (Type type : config.getQueryFieldsDatatypes().get(fieldName)) {
+                        if (type instanceof AbstractGeometryType) {
+                            geoFields.add(fieldName);
+                            break;
+                        }
                     }
+                }
+                
+                if (!geoFields.isEmpty()) {
+                    queryPlanComparators = new ArrayList<>();
+                    queryPlanComparators.add(new GeoWaveQueryPlanComparator(geoFields));
+                    queryPlanComparators.add(new DefaultQueryPlanComparator());
                 }
             }
             
-            if (!geoFields.isEmpty()) {
-                queryPlanComparators = new ArrayList<>();
-                queryPlanComparators.add(new GeoWaveQueryPlanComparator(geoFields));
-                queryPlanComparators.add(new DefaultQueryPlanComparator());
-            }
+            // @formatter:off
+            return new ThreadedRangeBundler.Builder()
+                    .setOriginal(queryData)
+                    .setQueryTree(queryTree)
+                    .setRanges(queryRanges.first())
+                    .setMaxRanges(maxRangesPerQueryPiece())
+                    .setDocsToCombine(docsToCombineForEvaluation)
+                    .setSettings(settings)
+                    .setDocSpecificLimitOverride(docSpecificOverride)
+                    .setMaxRangeWaitMillis(maxRangeWaitMillis)
+                    .setQueryPlanComparators(queryPlanComparators)
+                    .setNumRangesToBuffer(config.getNumRangesToBuffer())
+                    .setRangeBufferTimeoutMillis(config.getRangeBufferTimeoutMillis())
+                    .setRangeBufferPollMillis(config.getRangeBufferPollMillis())
+                    .build();
+            // @formatter:on
+        } else {
+            return null;
         }
-        
-        // @formatter:off
-        return new ThreadedRangeBundler.Builder()
-                .setOriginal(queryData)
-                .setQueryTree(queryTree)
-                .setRanges(queryRanges.first())
-                .setMaxRanges(maxRangesPerQueryPiece())
-                .setDocsToCombine(docsToCombineForEvaluation)
-                .setSettings(settings)
-                .setDocSpecificLimitOverride(docSpecificOverride)
-                .setMaxRangeWaitMillis(maxRangeWaitMillis)
-                .setQueryPlanComparators(queryPlanComparators)
-                .setNumRangesToBuffer(config.getNumRangesToBuffer())
-                .setRangeBufferTimeoutMillis(config.getRangeBufferTimeoutMillis())
-                .setRangeBufferPollMillis(config.getRangeBufferPollMillis())
-                .build();
-        // @formatter:on
     }
     
     private void configureIterator(ShardQueryConfiguration config, IteratorSetting cfg, String newQueryString, boolean isFullTable)
@@ -662,6 +675,11 @@ public class DefaultQueryPlanner extends QueryPlanner {
         capDateRange(config);
         
         stopwatch.stop();
+        
+        // TEMPORARY?: CHECK FOR UNMARKED BOUNDED RANGES
+        if (UnmarkedBoundedRangeDetectionVisitor.findUnmarkedBoundedRanges(queryTree)) {
+            throw new DatawaveFatalQueryException("Found incorrectly marked bounded ranges");
+        }
         
         stopwatch = timers.newStartedStopwatch("DefaultQueryPlanner - flatten");
         

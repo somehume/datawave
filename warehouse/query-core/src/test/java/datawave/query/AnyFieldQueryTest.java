@@ -131,27 +131,23 @@ public class AnyFieldQueryTest extends AbstractFunctionalQuery {
             }
             
             // Test the plan sans value expansion
-            try {
-                String plan = getPlan(query, true, false);
-                fail("Expected FullTableScanDisallowedException but got plan: " + plan);
-            } catch (FullTableScansDisallowedException e) {
-                // expected
-            } catch (Exception e) {
-                fail("Expected FullTableScanDisallowedException but got " + e);
+            String anyCity = "!(CITY == '" + city.name() + "'";
+            if (city.name().equals("london")) {
+                anyCity += ")" + JEXL_AND_OP + "!(STATE == '" + city.name() + "')";
+            } else {
+                anyCity = anyCity + ')';
             }
+            anyCity = "(((" + anyCity + ")))";
+            String plan = getPlan(query, true, false);
+            assertPlanEquals(anyCity, plan);
             
             // Test the plan sans field expansion
-            try {
-                String plan = getPlan(query, false, true);
-                fail("Expected FullTableScanDisallowedException but got plan: " + plan);
-            } catch (FullTableScansDisallowedException e) {
-                // expected
-            } catch (Exception e) {
-                fail("Expected FullTableScanDisallowedException but got " + e);
-            }
+            anyCity = "!(" + Constants.ANY_FIELD + EQ_OP + "'" + city.name() + "')";
+            plan = getPlan(query, false, true);
+            assertPlanEquals(anyCity, plan);
             
             // test running the query
-            String anyCity = this.dataManager.convertAnyField(cityPhrase, RawDataManager.AND_OP);
+            anyCity = this.dataManager.convertAnyField(cityPhrase, RawDataManager.AND_OP);
             try {
                 runTest(query, anyCity);
                 fail("expecting exception");
@@ -171,7 +167,7 @@ public class AnyFieldQueryTest extends AbstractFunctionalQuery {
                     anyCity = anyCity + ')';
                 }
                 anyCity = "(((" + anyCity + ")))";
-                String plan = getPlan(query, true, true);
+                plan = getPlan(query, true, true);
                 assertPlanEquals(anyCity, plan);
                 
                 // Test the plan sans value expansion
@@ -281,7 +277,6 @@ public class AnyFieldQueryTest extends AbstractFunctionalQuery {
                 anyQuery = anyQuery + JEXL_OR_OP + CityField.STATE.name() + cityPhrase;
             }
             anyQuery += JEXL_OR_OP + CityField.STATE.name() + statePhrase;
-            anyQuery += JEXL_OR_OP + "_NOFIELD_" + contPhrase;
             String plan = getPlan(query, true, true);
             assertPlanEquals(anyQuery, plan);
             
@@ -290,7 +285,7 @@ public class AnyFieldQueryTest extends AbstractFunctionalQuery {
             assertPlanEquals(anyQuery, plan);
             
             // Test the plan sans field expansion
-            anyQuery = Constants.ANY_FIELD + cityPhrase + JEXL_OR_OP + Constants.ANY_FIELD + statePhrase + JEXL_OR_OP + Constants.NO_FIELD + contPhrase;
+            anyQuery = Constants.ANY_FIELD + cityPhrase + JEXL_OR_OP + Constants.ANY_FIELD + statePhrase;
             plan = getPlan(query, false, true);
             assertPlanEquals(anyQuery, plan);
             
@@ -470,7 +465,7 @@ public class AnyFieldQueryTest extends AbstractFunctionalQuery {
         String query = first + AND_OP + Constants.ANY_FIELD + phrase;
         
         // Test the plan with all expansions
-        String expect = '(' + CityField.ACCESS.name() + EQ_OP + "'na'" + JEXL_OR_OP + first + ")" + JEXL_AND_OP + Constants.NO_FIELD + phrase;
+        String expect = "false";
         String plan = getPlan(query, true, true);
         assertPlanEquals(expect, plan);
         
@@ -479,7 +474,7 @@ public class AnyFieldQueryTest extends AbstractFunctionalQuery {
         assertPlanEquals(expect, plan);
         
         // Test the plan sans field expansion
-        expect = '(' + CityField.ACCESS.name() + EQ_OP + "'na'" + JEXL_OR_OP + first + ")" + JEXL_AND_OP + Constants.NO_FIELD + phrase;
+        expect = "false";
         plan = getPlan(query, false, true);
         assertPlanEquals(expect, plan);
         
@@ -548,7 +543,7 @@ public class AnyFieldQueryTest extends AbstractFunctionalQuery {
             String query = qCity + AND_OP + Constants.ANY_FIELD + phrase;
             
             // Test the plan with all expansions
-            String expect = qCity + JEXL_AND_OP + Constants.NO_FIELD + phrase;
+            String expect = "false";
             String plan = getPlan(query, true, true);
             assertPlanEquals(expect, plan);
             
@@ -766,27 +761,17 @@ public class AnyFieldQueryTest extends AbstractFunctionalQuery {
         }
         
         // Test the plan sans value expansion
-        try {
-            String plan = getPlan(query, true, false);
-            fail("Expected FullTableScanDisallowedException but got plan: " + plan);
-        } catch (FullTableScansDisallowedException e) {
-            // expected
-        } catch (Exception e) {
-            fail("Expected FullTableScanDisallowedException but got " + e);
-        }
+        String expect = "!(" + CityField.CONTINENT.name() + RE_OP + "'.*ica')";
+        String plan = getPlan(query, true, false);
+        assertPlanEquals(expect, plan);
         
         // Test the plan sans field expansion
-        try {
-            String plan = getPlan(query, false, true);
-            fail("Expected FullTableScanDisallowedException but got plan: " + plan);
-        } catch (FullTableScansDisallowedException e) {
-            // expected
-        } catch (Exception e) {
-            fail("Expected FullTableScanDisallowedException but got " + e);
-        }
+        expect = "!(" + Constants.ANY_FIELD + EQ_OP + "'north america')";
+        plan = getPlan(query, false, true);
+        assertPlanEquals(expect, plan);
         
         // test running the query
-        String expect = this.dataManager.convertAnyField(regPhrase, AND_OP);
+        expect = this.dataManager.convertAnyField(regPhrase, AND_OP);
         try {
             runTest(query, expect);
             fail("full table scan exception expected");
@@ -801,7 +786,7 @@ public class AnyFieldQueryTest extends AbstractFunctionalQuery {
             
             // Test the plan with all expansions
             expect = "!(" + CityField.CONTINENT.name() + EQ_OP + "'north america')";
-            String plan = getPlan(query, true, true);
+            plan = getPlan(query, true, true);
             assertPlanEquals(expect, plan);
             
             // Test the plan sans value expansion

@@ -749,8 +749,8 @@ public class RangeStream extends BaseVisitor implements CloseableIterable<QueryP
         } else if (IndexHoleMarkerJexlNode.instanceOf(node)) {
             return ScannerStream.ignored(node);
         } else if (BoundedRange.instanceOf(node)) {
-            // here we must have a bounded range that was not expanded, so there must be no hits
-            return ScannerStream.noData(node);
+            // here we must have a bounded range that was not expanded, so it must not be expandable via the index
+            return ScannerStream.ignored(node);
         } else {
             return descend(node, data);
         }

@@ -1,5 +1,6 @@
 package datawave.query;
 
+import datawave.helpers.PrintUtility;
 import datawave.query.exceptions.FullTableScansDisallowedException;
 import datawave.query.planner.DefaultQueryPlanner;
 import datawave.query.testframework.AbstractFunctionalQuery;
@@ -43,6 +44,7 @@ public class RangeQueryTest extends AbstractFunctionalQuery {
         dataTypes.add(new CitiesDataType(CityEntry.generic, generic));
         
         final AccumuloSetupHelper helper = new AccumuloSetupHelper(dataTypes);
+        Logger.getLogger(PrintUtility.class).setLevel(Level.DEBUG);
         connector = helper.loadTables(log);
     }
     
@@ -153,23 +155,17 @@ public class RangeQueryTest extends AbstractFunctionalQuery {
             }
             
             // Test the plan sans value expansion
-            try {
-                String plan = getPlan(query, true, false);
-                Assert.fail("Expected FullTableScansDisallowedException but got " + plan);
-            } catch (FullTableScansDisallowedException e) {
-                
-            }
+            String expected = CityField.CITY.name() + LTE_OP + "'" + city.name() + "'" + AND_OP + CityField.CITY.name() + GTE_OP + "'" + city.name() + "'"
+                            + AND_OP + CityField.NUM.name() + LTE_OP + "'+bE2'" + AND_OP + CityField.NUM.name() + GTE_OP + "'+bE2'";
+            String plan = getPlan(query, true, false);
+            assertPlanEquals(expected, plan);
             
             // Test the plan sans field expansion
-            try {
-                String plan = getPlan(query, false, true);
-                Assert.fail("Expected FullTableScansDisallowedException but got " + plan);
-            } catch (FullTableScansDisallowedException e) {
-                
-            }
+            plan = getPlan(query, false, true);
+            assertPlanEquals(expected, plan);
             
             // test running the query
-            String expected = query;
+            expected = query;
             runTest(query, expected);
         }
     }
@@ -207,6 +203,7 @@ public class RangeQueryTest extends AbstractFunctionalQuery {
     
     @Test
     public void testMultiFieldsNoResults() throws Exception {
+        Logger.getLogger(DefaultQueryPlanner.class).setLevel(Level.DEBUG);
         log.info("------  testMultiFieldsNoResults  ------");
         String state = "'ohio'";
         String qState = "((BoundedRange = true) && (" + CityField.STATE.name() + LTE_OP + state + AND_OP + CityField.STATE.name() + GTE_OP + state + "))";
@@ -312,6 +309,7 @@ public class RangeQueryTest extends AbstractFunctionalQuery {
     
     @Test
     public void testRangeOrExp() throws Exception {
+        Logger.getLogger(DefaultQueryPlanner.class).setLevel(Level.DEBUG);
         log.info("------  testRangeOrExp  ------");
         String start = "'e'";
         String end = "'r'";
@@ -321,7 +319,9 @@ public class RangeQueryTest extends AbstractFunctionalQuery {
                             + LTE_OP + end + "))";
             
             // test running the query
-            String expected = query;
+            String expected = "(" + CityField.CITY.name() + EQ_OP + "'" + city.name() + "'" + OR_OP + CityField.CITY.name() + EQ_OP + "'" + city.name()
+                            + "-extra')" + AND_OP + "(" + CityField.STATE.name() + GTE_OP + start + AND_OP + CityField.STATE.name() + LTE_OP + end + ")";
+            
             runTest(query, expected);
         }
     }
@@ -345,27 +345,17 @@ public class RangeQueryTest extends AbstractFunctionalQuery {
         }
         
         // Test the plan sans value expansion
-        try {
-            String plan = getPlan(query, true, false);
-            Assert.fail("Expected FullTableScanDisallowedException but got plan: " + plan);
-        } catch (FullTableScansDisallowedException e) {
-            // expected
-        } catch (Exception e) {
-            Assert.fail("Expected FullTableScanDisallowedException but got " + e);
-        }
+        String expected = CityField.NUM.name() + LTE_OP + "'+cE1'" + AND_OP + "((ASTDelayedPredicate = true) && (" + CityField.CITY.name() + EQ_OP + "'" + city
+                        + "'" + OR_OP + CityField.NUM.name() + GTE_OP + "'+cE1'))";
+        String plan = getPlan(query, true, false);
+        assertPlanEquals(expected, plan);
         
         // Test the plan sans field expansion
-        try {
-            String plan = getPlan(query, false, true);
-            Assert.fail("Expected FullTableScanDisallowedException but got plan: " + plan);
-        } catch (FullTableScansDisallowedException e) {
-            // expected
-        } catch (Exception e) {
-            Assert.fail("Expected FullTableScanDisallowedException but got " + e);
-        }
+        plan = getPlan(query, false, true);
+        assertPlanEquals(expected, plan);
         
         // test running the query
-        String expected = query;
+        expected = query;
         runTest(query, expected);
     }
     
@@ -386,27 +376,15 @@ public class RangeQueryTest extends AbstractFunctionalQuery {
         }
         
         // Test the plan sans value expansion
-        try {
-            String plan = getPlan(query, true, false);
-            Assert.fail("Expected FullTableScanDisallowedException but got plan: " + plan);
-        } catch (FullTableScansDisallowedException e) {
-            // expected
-        } catch (Exception e) {
-            Assert.fail("Expected FullTableScanDisallowedException but got " + e);
-        }
+        String expected = "(" + CityField.NUM.name() + GTE_OP + "'+bE9.9'" + AND_OP + CityField.NUM.name() + GTE_OP + "'+cE1.21')";
+        String plan = getPlan(query, true, false);
+        assertPlanEquals(expected, plan);
         
-        // Test the plan sans field expansion
-        try {
-            String plan = getPlan(query, false, true);
-            Assert.fail("Expected FullTableScanDisallowedException but got plan: " + plan);
-        } catch (FullTableScansDisallowedException e) {
-            // expected
-        } catch (Exception e) {
-            Assert.fail("Expected FullTableScanDisallowedException but got " + e);
-        }
+        plan = getPlan(query, false, true);
+        assertPlanEquals(expected, plan);
         
         // test running the query
-        String expected = query;
+        expected = query;
         runTest(query, expected);
     }
     

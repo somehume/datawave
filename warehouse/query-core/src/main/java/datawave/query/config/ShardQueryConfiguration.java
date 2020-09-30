@@ -95,6 +95,10 @@ public class ShardQueryConfiguration extends GenericQueryConfiguration implement
     private boolean limitAnyFieldLookups = false;
     private boolean bypassExecutabilityCheck = false;
     /**
+     * Usually we are planning for the purposes of running the query. This can be set if only generating a plan (i.e. don't start generating ranges)
+     */
+    private boolean generatePlanOnly = false;
+    /**
      * Allows for back off of scanners.
      */
     private boolean backoffEnabled = false;
@@ -2066,5 +2070,13 @@ public class ShardQueryConfiguration extends GenericQueryConfiguration implement
     
     public Set<String> getEvaluationOnlyFields() {
         return this.evaluationOnlyFields;
+    }
+    
+    public boolean isGeneratePlanOnly() {
+        return generatePlanOnly;
+    }
+    
+    public void setGeneratePlanOnly(boolean generatePlanOnly) {
+        this.generatePlanOnly = generatePlanOnly;
     }
 }
